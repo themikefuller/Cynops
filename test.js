@@ -1,5 +1,11 @@
 'use strict';
 
+const Cryptic = require('@starbase/cryptic');
+const cryptic = Cryptic();
+
+const Cynops = require('./cynops');
+const cynops = Cynops(cryptic);
+
 async function Test(cynops) {
 
   let alice = await cynops.createUser();
@@ -36,6 +42,8 @@ async function Test(cynops) {
   let openA2 = await bob.openEnvelope(sealA2);
   let readA2 = await sessionB.read(openA2.contents);
 
-  return {alice, bob, bobCard, sessionA, sessionB, msgA0, sealA0, msgA1, sealA1, openA0, readA0, openA1, readA1, msgB0, sealB0, openB0, readB0, msgA2, sealA2, openA2, readA2};
+  return {alice, bob, bobCard, sessionA, msgA0, sealA0, msgA1, sealA1, sessionB, openA0, readA0, openA1, readA1, msgB0, sealB0, openB0, readB0, msgA2, sealA2, openA2, readA2};
 
 }
+
+Test(cynops).then(console.log);

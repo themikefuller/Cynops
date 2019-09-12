@@ -1,6 +1,6 @@
 {
   "name": "cynops",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "End-to-end Encrypted Chat and Messaging",
   "main": "index.js",
   "browser": "cynops.min.js",

@@ -38,12 +38,12 @@ function Cynops(cryptic) {
   }
 
   async function sessionHash(combinedDH, init) {
-   let hashed = await cryptic.hkdf(combinedDH, new Uint8Array(32), cryptic.fromText('SIGNAL'), 256 * 3);
+   let hashed = await cryptic.kdf(combinedDH, new Uint8Array(32), cryptic.fromText('SIGNAL'), 256 * 3);
     let sharedKey = cryptic.decode(hashed).slice(0,32);
     let authKey = cryptic.decode(hashed).slice(32,64);
     let sessionId = cryptic.decode(hashed).slice(64, 96);
     let ad = cryptic.combine(cryptic.decode(init.from),cryptic.decode(init.to));
-    let AD = await cryptic.hkdf(cryptic.combine(authKey, ad), new Uint8Array(32), cryptic.fromText("AD"), 256);
+    let AD = await cryptic.kdf(cryptic.combine(authKey, ad), new Uint8Array(32), cryptic.fromText("AD"), 256);
     return {"sessionId":cryptic.encode(sessionId), "sk":cryptic.encode(sharedKey), AD, init};
   }
 
@@ -83,7 +83,7 @@ function Cynops(cryptic) {
   }
 
   async function rootKDF(rk, dh) {
-    let ratchet = await cryptic.hkdf(cryptic.decode(dh), cryptic.decode(rk), cryptic.fromText('ROOT'), 512);
+    let ratchet = await cryptic.kdf(cryptic.decode(dh), cryptic.decode(rk), cryptic.fromText('ROOT'), 512);
     let RK = cryptic.encode(cryptic.decode(ratchet).slice(0, 32));
     let CK = cryptic.encode(cryptic.decode(ratchet).slice(32));
     return [RK, CK];
@@ -126,7 +126,7 @@ function Cynops(cryptic) {
   async function trySkippedMessageKeys(state, header, ciphertext, AEAD) {
     if (state.MKSKIPPED[header.dh] && state.MKSKIPPED[header.dh][header.n]) {
       let mk = state.MKSKIPPED[header.dh][header.n];
-      let KEY = await cryptic.hkdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
+      let KEY = await cryptic.kdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
       let plaintext = await cryptic.decrypt(ciphertext, cryptic.decode(KEY), cryptic.decode(AEAD)).catch(err => {
         return null;
       });
@@ -180,8 +180,8 @@ function Cynops(cryptic) {
       "n": state.Ns
     };
     state.Ns += 1;
-    let AEAD = await cryptic.hkdf(cryptic.combine(cryptic.decode(AD), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("AEAD"), 256);
-    let KEY = await cryptic.hkdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
+    let AEAD = await cryptic.kdf(cryptic.combine(cryptic.decode(AD), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("AEAD"), 256);
+    let KEY = await cryptic.kdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
     let encrypted = {
       header,
       "ciphertext": await cryptic.encrypt(JSON.stringify(msg), cryptic.decode(KEY), cryptic.decode(AEAD))
@@ -197,7 +197,7 @@ function Cynops(cryptic) {
       header,
       ciphertext
     } = msgPayload;
-    let AEAD = await cryptic.hkdf(cryptic.combine(cryptic.decode(AD), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("AEAD"), 256);
+    let AEAD = await cryptic.kdf(cryptic.combine(cryptic.decode(AD), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("AEAD"), 256);
     let found = await trySkippedMessageKeys(state, header, ciphertext, AEAD || null);
     if (found) {
       return found;
@@ -210,7 +210,7 @@ function Cynops(cryptic) {
     let mk = null;
     [state.CKr, mk] = await chainKDF(state.CKr);
     state.Nr += 1;
-    let KEY = await cryptic.hkdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
+    let KEY = await cryptic.kdf(cryptic.combine(cryptic.decode(mk), cryptic.fromText(JSON.stringify(header))), new Uint8Array(32), cryptic.fromText("ENCRYPT"), 256);
     let plaintext = await cryptic.decrypt(ciphertext, cryptic.decode(KEY), cryptic.decode(AEAD)).catch(err => {
       throw ({
         "error": "failed to decrypt"
@@ -249,7 +249,7 @@ function Cynops(cryptic) {
 
     let dh1 = await cryptic.ecdh(epk.key, to);
     let envSalt = cryptic.combine(cryptic.decode(to), cryptic.decode(epk.pub));
-    let envBits = await cryptic.hkdf(cryptic.decode(dh1), envSalt, cryptic.fromText("ENVELOPE"), 256 * 3);
+    let envBits = await cryptic.kdf(cryptic.decode(dh1), envSalt, cryptic.fromText("ENVELOPE"), 256 * 3);
     let envAD = cryptic.combine(cryptic.decode(envBits).slice(0, 32), cryptic.combine(cryptic.decode(epk.pub), cryptic.decode(to)));
     let envKey = cryptic.decode(envBits).slice(32, 64);
     let envChain = cryptic.decode(envBits).slice(64, 96);
@@ -258,7 +258,7 @@ function Cynops(cryptic) {
 
     let dh2 = await cryptic.ecdh(userIDK.key, to)
     let sealSalt = cryptic.combine(envChain, cryptic.fromText(sealed));
-    let sealBits = await cryptic.hkdf(cryptic.decode(dh2), cryptic.combine(sealSalt, cryptic.decode(idk)), cryptic.fromText("SEAL"), 256 * 2);
+    let sealBits = await cryptic.kdf(cryptic.decode(dh2), cryptic.combine(sealSalt, cryptic.decode(idk)), cryptic.fromText("SEAL"), 256 * 2);
     let sealAD = cryptic.combine(cryptic.decode(sealBits).slice(0, 32), cryptic.decode(to));
     let sealKey = cryptic.decode(sealBits).slice(32, 64); 
 
@@ -276,7 +276,7 @@ function Cynops(cryptic) {
 
     let dh1 = await cryptic.ecdh(userIDK.key, epk);
     let envSalt = cryptic.combine(cryptic.decode(idk), cryptic.decode(epk));
-    let envBits = await cryptic.hkdf(cryptic.decode(dh1), envSalt, cryptic.fromText("ENVELOPE"), 256 * 3);
+    let envBits = await cryptic.kdf(cryptic.decode(dh1), envSalt, cryptic.fromText("ENVELOPE"), 256 * 3);
     let envAD = cryptic.combine(cryptic.decode(envBits).slice(0, 32), cryptic.combine(cryptic.decode(epk), cryptic.decode(idk)));
     let envKey = cryptic.decode(envBits).slice(32, 64);
     let envChain = cryptic.decode(envBits).slice(64, 96);
@@ -285,7 +285,7 @@ function Cynops(cryptic) {
 
     let dh2 = await cryptic.ecdh(userIDK.key, from);
     let sealSalt = cryptic.combine(envChain, cryptic.fromText(env.seal));
-    let sealBits = await cryptic.hkdf(cryptic.decode(dh2), cryptic.combine(sealSalt, cryptic.decode(from)), cryptic.fromText("SEAL"), 256 * 2);
+    let sealBits = await cryptic.kdf(cryptic.decode(dh2), cryptic.combine(sealSalt, cryptic.decode(from)), cryptic.fromText("SEAL"), 256 * 2);
     let sealAD = cryptic.combine(cryptic.decode(sealBits).slice(0, 32), cryptic.decode(idk));
     let sealKey = cryptic.decode(sealBits).slice(32, 64);
 
